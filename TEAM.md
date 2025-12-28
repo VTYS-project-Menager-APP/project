@@ -4,24 +4,24 @@ Bu belgede üyelerin sorumlulukları ve iş dağılımı yer almaktadır.
 
 ## 👥 Ekip Üyeleri ve Görev Tanımları
 
-### 1. Üye: Frontend & UI/UX Sorumlusu
-*   **Odak Noktası**: Kullanıcı arayüzü, görsel tasarım ve kullanıcı deneyimi.
+### 1. Member: Frontend & UI/UX Specialist
+*   **Focus**: User interface, visual design, and user experience.
 *   **Teknolojiler**: React, Tailwind CSS, Lucide Icons.
 *   **Sorumluluklar**:
     *   Responsive (mobil uyumlu) tasarımların yapılması.
     *   API verilerinin arayüzde dinamik olarak gösterilmesi.
     *   Dashboard görselleştirmeleri (grafikler, tablolar).
 
-### 2. Üye: Backend & Sistem Mimarı
-*   **Odak Noktası**: İş mantığı (Business Logic), API geliştirme ve servis entegrasyonları.
+### 2. Member: Backend & System Architect
+*   **Focus**: Business logic, API development, and service integrations.
 *   **Teknolojiler**: Python, FastAPI, APScheduler.
 *   **Sorumluluklar**:
     *   Restful API uç noktalarının (endpoints) oluşturulması.
     *   Dış API servisleri (Yahoo, NewsAPI) ile entegrasyon.
     *   Veri işleme ve analiz algoritmalarının yazılması.
 
-### 3. Üye: Veritabanı (VTYS) & DevOps Sorumlusu
-*   **Odak Noktası**: Veri modelleme, sorgu optimizasyonu ve sistemin ayağa kaldırılması.
+### 3. Member: Database (DBMS) & DevOps Engineer
+*   **Focus**: Data modeling, query optimization, and deployment.
 *   **Teknolojiler**: PostgreSQL, SQL, Docker, Docker Compose.
 *   **Sorumluluklar**:
     *   Veritabanı şemalarının (Models) tasarımı ve yönetimi.

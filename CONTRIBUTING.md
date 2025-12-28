@@ -6,21 +6,21 @@ Bu proje, düzenli bir çalışma ve çakışmaları önlemek için belirli kura
 
 Projeyi doğrudan `main` branch (ana dal) üzerinde geliştirmeyin. Her yeni özellik veya hata düzeltmesi için yeni bir dal açılmalıdır.
 
-**Dal İsmi Formatı:** `ozellik/yaptiginiz-is` veya `hata/duzeltilen-sey`
+**Branch Naming Format:** `feature/task-name` or `bugfix/issue-name`
 
-Örnekler:
-- `ozellik/login-sayfası`
-- `ozellik/veritabani-modelleri`
-- `hata/api-baglanti-sorunu`
+Examples:
+- `feature/login-page`
+- `feature/database-models`
+- `bugfix/api-connection-issue`
 
 ## 💻 Temel Çalışma Akışı
 
-1. **Dal Oluşturma**:
-   Çalışmaya başlamadan önce ana dalın en güncel olduğundan emin olun ve yeni bir dal açın:
+1. **Create Branch**:
+   Ensure your main branch is up to date and create a new branch:
    ```bash
    git checkout main
    git pull origin main
-   git checkout -b ozellik/yeni-ozellik-adi
+   git checkout -b feature/new-feature-name
    ```
 
 2. **Değişiklikleri Kaydetme (Commit)**:
@@ -30,10 +30,10 @@ Projeyi doğrudan `main` branch (ana dal) üzerinde geliştirmeyin. Her yeni öz
    git commit -m "Anlamlı ve kısa bir açıklama (örn: Login formu eklendi)"
    ```
 
-3. **Sunucuya Gönderme (Push)**:
-   Daldaki çalışmanızı GitHub'a gönderin:
+3. **Push to Server**:
+   Push your work to GitHub:
    ```bash
-   git push origin ozellik/yeni-ozellik-adi
+   git push origin feature/new-feature-name
    ```
 
 4. **Pull Request (PR) Oluşturma**:
