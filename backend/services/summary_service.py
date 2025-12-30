@@ -186,13 +186,19 @@ class SummaryService:
         upcoming_str = "\n".join(upcoming_context) if upcoming_context else "Yakında önemli bir olay yok."
         
         return f"""
-Sen uzman bir finansal analistsin ve 8000+ tarihsel olay verisine dayanarak piyasa tahminleri yapıyorsun.
+Sen bir finansal analiz asistanısın. SADECE aşağıda verilen veritabanı verilerini kullanarak analiz yap.
+
+⚠️ KRİTİK KURALLAR:
+- SADECE verilen verileri kullan
+- Kendi genel bilgini EKLEME
+- Veritabanında olmayan tarihleri, olayları veya sayıları UYDURMA
+- "Geçmişte X olayda Y oldu" dersen, bu bilgi aşağıdaki verilerde OLMALI
 
 === GÜNCEL PİYASA DURUM ===
 {rates_str}
 
 === TARİHSEL KORELASYON ANALİZİ ===
-Aşağıda güncel olaylara benzer geçmiş olaylar ve o zamanki fiyat hareketleri gösteriliyor:
+Veritabanımızda güncel olaylara benzer geçmiş olaylar ve o zamanki GERÇEK fiyat hareketleri:
 
 {news_str}
 
@@ -200,23 +206,19 @@ Aşağıda güncel olaylara benzer geçmiş olaylar ve o zamanki fiyat hareketle
 {upcoming_str}
 
 === GÖREV ===
-Yukarıdaki tarihsel verileri kullanarak DETAYLI bir analiz yap:
+SADECE yukarıdaki veritabanı verilerini kullanarak analiz yap:
 
 ÖZET:
-[Buraya piyasanın genel durumunu anlatan 2-3 cümlelik özet yaz.]
+[Güncel piyasa durumunu 2-3 cümleyle özetle. SADECE yukarıdaki güncel kur verilerini kullan.]
 
 TAVSİYE:
-[ÖNEMLİ: Geçmiş olaylardaki GERÇEK fiyat değişimlerini kullanarak somut tahmin yap.
-Örnek format: "2022'de benzer enflasyon açıklamasında altın %2.5 yükseldi, 2020'de %1.8 düştü. Ortalama %1.15 yükseliş göz önüne alındığında, bu sefer de ______ bekleniyor."
+[SADECE yukarıdaki tarihsel korelasyon verilerini kullanarak tahmin yap.
+- Eğer tarihsel veri varsa: Tam olarak hangi tarihte, hangi olayda, ne kadar değişim olduğunu belirt
+- Eğer tarihsel veri yoksa: "Yeterli tarihsel veri bulunamadı" de
+- Asla kendi bilgin olan olayları ekleme
+- Veritabanında olmayan tarihleri kullanma
 
-Mutlaka şu bilgileri ekle:
-1. Kaç tane benzer geçmiş olay var
-2. O olaylardaki ortalama fiyat değişimi
-3. En yakın benzer olayın tarihi ve sonucu
-4. Güncel piyasa koşullarıyla karşılaştırma
-5. Kısa vadeli (1 hafta) ve orta vadeli (1 ay) somut fiyat beklentisi
-
-4-5 cümlelik detaylı analiz yaz.]
+3-4 cümlelik analiz yaz.]
 """
 
     def _build_summary_text_fallback(self, rates, news, upcoming):
