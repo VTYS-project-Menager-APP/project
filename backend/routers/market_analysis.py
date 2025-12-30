@@ -10,7 +10,8 @@ from services.prediction_service import prediction_service
 from services.trading_economics_service import trading_economics_service
 import pandas as pd
 from database import SessionLocal
-from models import CurrentEvent, HistoricalEvent, MarketEventCorrelation, UpcomingEvent
+from models import CurrentEvent, HistoricalEvent, MarketEventCorrelation, UpcomingEvent, MarketSummary
+import json
 from typing import List, Optional
 
 router = APIRouter(
@@ -291,3 +292,41 @@ async def get_scenarios():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/summary")
+async def get_latest_summary():
+    """
+    En son oluşturulan piyasa özetini döndürür
+    """
+    db = SessionLocal()
+    try:
+        summary = db.query(MarketSummary).order_by(MarketSummary.created_at.desc()).first()
+        
+        if not summary:
+            # Özet yoksa hemen bir tane oluşturmayı dene
+            from services.summary_service import summary_service
+            summary = summary_service.generate_hourly_summary()
+            
+        if not summary:
+            return {
+                'success': False,
+                'message': 'Summary not available yet'
+            }
+            
+        return {
+            'success': True,
+            'data': {
+                'id': summary.id,
+                'summary_text': summary.summary_text,
+                'advice_text': summary.advice_text,
+                'overall_sentiment': summary.overall_sentiment,
+                'created_at': summary.created_at.isoformat(),
+                'market_snapshot': json.loads(summary.market_snapshot) if summary.market_snapshot else [],
+                'news_snapshot': json.loads(summary.news_snapshot) if summary.news_snapshot else [],
+                'upcoming_snapshot': json.loads(summary.upcoming_events_snapshot) if summary.upcoming_events_snapshot else []
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()

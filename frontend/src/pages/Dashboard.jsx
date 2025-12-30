@@ -52,15 +52,8 @@ export default function Dashboard() {
 
                 {/* Left Column - Main Content (8 cols) */}
                 <div className="lg:col-span-8 space-y-6">
-                    {/* Market Analysis - Embedded Style */}
-                    <div className="bg-white border border-[#eaecf0] rounded-[6px] p-6 shadow-sm">
-                        <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-lg font-bold text-[#101828]">Piyasa Analiz Merkezi</h2>
-                            <div className="flex space-x-2">
-                                <span className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
-                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mt-0.5">Live Analysis</span>
-                            </div>
-                        </div>
+                    {/* Market Analysis - Clean & Modern */}
+                    <div>
                         <MarketAnalysisTabs />
                     </div>
 
