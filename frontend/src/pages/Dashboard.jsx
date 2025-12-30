@@ -3,6 +3,7 @@ import api from '../api';
 import EventBar from '../components/EventBar';
 import MarketAnalysisTabs from '../components/MarketAnalysisTabs';
 import SmartTransportContainerV2 from '../components/SmartTransportContainerV2';
+import SmartStyleContainer from '../components/SmartStyleContainer';
 import AlarmNotification from '../components/AlarmNotification';
 
 // Loading component
@@ -55,6 +56,11 @@ export default function Dashboard() {
                     {/* Market Analysis - Clean & Modern */}
                     <div>
                         <MarketAnalysisTabs />
+                    </div>
+
+                    {/* Smart Style Engine - Sanzo Wada */}
+                    <div>
+                        <SmartStyleContainer />
                     </div>
 
                     {/* Smart Transport Alarms with Map */}

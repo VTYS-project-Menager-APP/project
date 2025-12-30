@@ -427,6 +427,7 @@ async def search_routes_by_location(
             "origin_stops": result['origin_stops'],
             "destination_stops": result['destination_stops'],
             "available_routes": result['all_routes'],
+            "origin_only_routes": result.get('origin_only_routes', []),
             "total_routes": result['route_count'],
             "message": f"{result['route_count']} otobüs hattı bulundu" if result['route_count'] > 0 else "Hat bulunamadı"
         }

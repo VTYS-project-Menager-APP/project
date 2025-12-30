@@ -1,7 +1,8 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Index, TIMESTAMP, Text
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Index, TIMESTAMP, Text, Boolean, Date, Enum
 from sqlalchemy.orm import relationship
 from database import Base
 import datetime
+import enum
 
 class User(Base):
     __tablename__ = "users"
@@ -16,6 +17,7 @@ class User(Base):
 
     expenses = relationship("Expense", back_populates="user")
     goals = relationship("Goal", back_populates="user")
+    clothing_items = relationship("ClothingItem", back_populates="user")
 
 class Expense(Base):
     __tablename__ = "expenses"
@@ -43,17 +45,11 @@ class Goal(Base):
 
 class MarketData(Base):
     __tablename__ = "market_data"
-
-    # In TimescaleDB, time is the partition key and part of the primary key usually.
-    # However, SQLAlchemy expects a single PK or Composite PK. 
-    # For hypertable, we just define the structure, and turn it into hypertable via SQL.
     
     time = Column(TIMESTAMP(timezone=True), primary_key=True, nullable=False)
     symbol = Column(String, primary_key=True, nullable=False)
     price = Column(Float, nullable=False)
     volume = Column(Integer, nullable=True)
-    
-    # Composite PK (time, symbol) is best for TimescaleDB
 
 class HistoricalEvent(Base):
     """Geçmiş önemli olaylar (ekonomik, politik, sosyal)"""
@@ -68,7 +64,6 @@ class HistoricalEvent(Base):
     source = Column(String, default="kaggle")  # Veri kaynağı
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     
-    # Relationship
     correlations = relationship("MarketEventCorrelation", back_populates="event")
 
 class MarketEventCorrelation(Base):
@@ -85,7 +80,6 @@ class MarketEventCorrelation(Base):
     days_after = Column(Integer, default=7)  # Kaç gün sonraki fiyat
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     
-    # Relationship
     event = relationship("HistoricalEvent", back_populates="correlations")
 
 class CurrentMarketRate(Base):
@@ -141,7 +135,6 @@ class TransportRoute(Base):
     active_days = Column(Text, default='[0,1,2,3,4,5,6]')  # 0=Pazartesi, 6=Pazar
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     
-    # Relationship
     alarms = relationship("UserTransportAlarm", back_populates="route")
 
 class UserTransportAlarm(Base):
@@ -151,30 +144,24 @@ class UserTransportAlarm(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     
-    # Lokasyon bilgileri
-    origin_location = Column(String, nullable=True)  # Başlangıç konumu (adres veya durak)
-    destination_location = Column(String, nullable=True)  # Hedef konum (iş yeri)
-    origin_durak_kodu = Column(String, nullable=True)  # Başlangıç durak kodu (İBB API için)
-    destination_durak_kodu = Column(String, nullable=True)  # Hedef durak kodu
+    origin_location = Column(String, nullable=True)
+    destination_location = Column(String, nullable=True)
+    origin_durak_kodu = Column(String, nullable=True)
+    destination_durak_kodu = Column(String, nullable=True)
     
-    # Zaman bilgileri
-    target_arrival_time = Column(String, nullable=True)  # Hedefe varış saati (HH:MM)
-    travel_time_to_stop = Column(Integer, nullable=False, default=10)  # Durağa yürüme süresi (dakika)
+    target_arrival_time = Column(String, nullable=True)
+    travel_time_to_stop = Column(Integer, nullable=False, default=10)
     
-    # Alarm ayarları
-    alarm_enabled = Column(Integer, default=1)  # 0: kapalı, 1: açık
-    notification_minutes_before = Column(Integer, default=5)  # Kalkıştan kaç dakika önce bildirim
+    alarm_enabled = Column(Integer, default=1)
+    notification_minutes_before = Column(Integer, default=5)
     
-    # Eski sistem uyumluluğu için (opsiyonel)
     route_id = Column(Integer, ForeignKey("transport_routes.id"), nullable=True)
     
-    # Metadata
-    alarm_name = Column(String, nullable=True)  # Örn: "İşe Gidiş", "Eve Dönüş"
-    last_triggered = Column(DateTime, nullable=True)  # Son tetiklenme zamanı
+    alarm_name = Column(String, nullable=True)
+    last_triggered = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
     
-    # Relationships
     user = relationship("User", backref="transport_alarms")
     route = relationship("TransportRoute", back_populates="alarms")
     selected_routes = relationship("AlarmSelectedRoute", back_populates="alarm", cascade="all, delete-orphan")
@@ -185,14 +172,13 @@ class AlarmSelectedRoute(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     alarm_id = Column(Integer, ForeignKey("user_transport_alarms.id"), nullable=False)
-    hat_kodu = Column(String, nullable=False)  # Otobüs hat numarası (İBB API'den)
-    hat_adi = Column(String, nullable=True)  # Hat adı
-    tahmini_sure = Column(Integer, nullable=True)  # Tahmini yolculuk süresi (dakika)
-    priority = Column(Integer, default=0)  # Öncelik sırası (0=en düşük)
-    is_active = Column(Integer, default=1)  # 0: devre dışı, 1: aktif
+    hat_kodu = Column(String, nullable=False)
+    hat_adi = Column(String, nullable=True)
+    tahmini_sure = Column(Integer, nullable=True)
+    priority = Column(Integer, default=0)
+    is_active = Column(Integer, default=1)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     
-    # Relationships
     alarm = relationship("UserTransportAlarm", back_populates="selected_routes")
 
 class MarketSummary(Base):
@@ -201,9 +187,62 @@ class MarketSummary(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     summary_text = Column(Text, nullable=False)
-    market_snapshot = Column(Text, nullable=True)  # JSON string of current rates
-    upcoming_events_snapshot = Column(Text, nullable=True) # JSON string of next events
-    news_snapshot = Column(Text, nullable=True) # JSON string of top news
+    market_snapshot = Column(Text, nullable=True)
+    upcoming_events_snapshot = Column(Text, nullable=True)
+    news_snapshot = Column(Text, nullable=True)
     advice_text = Column(Text, nullable=True)
-    overall_sentiment = Column(String, default="Neutral") # Positive, Negative, Neutral
+    overall_sentiment = Column(String, default="Neutral")
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+# --- Sanzo Wada Smart Style Engine Models ---
+
+class PaletteType(str, enum.Enum):
+    TWO_COLOR = "2-color"
+    THREE_COLOR = "3-color"
+    FOUR_COLOR = "4-color"
+
+class ClothingCategory(str, enum.Enum):
+    TOP = "Top"
+    BOTTOM = "Bottom"
+    OUTERWEAR = "Outerwear"
+    SHOES = "Shoes"
+    ACCESSORY = "Accessory"
+
+class SanzoWadaPalette(Base):
+    """Sanzo Wada'nın sözlüğündeki 348 renk kombinasyonu."""
+    __tablename__ = "sanzo_wada_palettes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    combination_id = Column(Integer, unique=True, index=True) # Repo'daki ID
+    combination_type = Column(String) # Enum as string for simplicity in DB, or use Enum type
+    colors = Column(Text) # JSON list of hex codes
+    name = Column(String, nullable=True)
+
+class ClothingItem(Base):
+    """Kullanıcının kişisel gardırobu."""
+    __tablename__ = "clothing_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    category = Column(String) # Enum as string
+    sub_category = Column(String) # Denim Jacket, T-shirt
+    primary_color_hex = Column(String)
+    material = Column(String, nullable=True)
+    is_favorite = Column(Boolean, default=False)
+    last_worn = Column(DateTime, nullable=True)
+    image_url = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    user = relationship("User", back_populates="clothing_items")
+
+class UserOutfitLog(Base):
+    """Geçmişte giyilen kombinlerin kaydı."""
+    __tablename__ = "user_outfit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id")) # Missing in user spec but needed
+    date = Column(Date, default=datetime.date.today)
+    items = Column(Text) # JSON list of clothing_item_ids
+    palette_id = Column(Integer, ForeignKey("sanzo_wada_palettes.id"))
+
+    palette = relationship("SanzoWadaPalette")

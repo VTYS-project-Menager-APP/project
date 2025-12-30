@@ -28,6 +28,8 @@ const SmartTransportContainerV2 = () => {
 
   const [searchingRoutes, setSearchingRoutes] = useState(false);
   const [availableRoutes, setAvailableRoutes] = useState([]);
+  const [indirectRoutes, setIndirectRoutes] = useState([]); // New state for indirect routes
+  const [showIndirectRoutes, setShowIndirectRoutes] = useState(false); // Toggle visibility
   const [routeSearchResult, setRouteSearchResult] = useState(null);
 
   useEffect(() => {
@@ -108,17 +110,27 @@ const SmartTransportContainerV2 = () => {
       });
       
       const routes = response.data.available_routes || [];
+      const indirect = response.data.origin_only_routes || [];
+      
       setAvailableRoutes(routes);
+      setIndirectRoutes(indirect);
       setRouteSearchResult(response.data);
       
-      // Auto-select all routes
+      // Auto-select all direct routes
       setFormData(prev => ({
         ...prev,
         selected_hat_kodlari: routes.map(r => r.hat_kodu)
       }));
       
       if (routes.length === 0) {
-        alert('Bu konumlar arasında direkt otobüs hattı bulunamadı. Lütfen farklı konumlar deneyin.');
+        if (indirect.length > 0) {
+          setShowIndirectRoutes(true); // Auto show indirect if no direct
+          alert('Direkt hat bulunamadı, ancak bu yöne giden diğer hatlar listelendi (Aktarma gerekebilir).');
+        } else {
+          alert('Bu konumlar arasında otobüs hattı bulunamadı. Lütfen farklı konumlar deneyin.');
+        }
+      } else {
+        setShowIndirectRoutes(false); // Hide indirect by default if direct exists
       }
     } catch (error) {
       console.error('Route search error:', error);
@@ -344,12 +356,13 @@ const SmartTransportContainerV2 = () => {
             </div>
           )}
 
-          {/* Available Routes */}
+          {/* Available Routes (Direct) */}
           {availableRoutes.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <label className="text-[10px] font-black text-[#475467] uppercase tracking-wider">
-                  Bulunan Otobüs Hatları ({availableRoutes.length})
+                <label className="text-[10px] font-black text-[#10b981] uppercase tracking-wider flex items-center gap-1">
+                  <CheckCircle size={12} />
+                  Direkt Giden Hatlar ({availableRoutes.length})
                 </label>
                 <button
                   onClick={() => {
@@ -358,13 +371,15 @@ const SmartTransportContainerV2 = () => {
                     );
                     setFormData(prev => ({
                       ...prev,
-                      selected_hat_kodlari: allSelected ? [] : availableRoutes.map(r => r.hat_kodu)
+                      selected_hat_kodlari: allSelected 
+                        ? prev.selected_hat_kodlari.filter(k => !availableRoutes.find(ar => ar.hat_kodu === k))
+                        : [...new Set([...prev.selected_hat_kodlari, ...availableRoutes.map(r => r.hat_kodu)])]
                     }));
                   }}
                   className="text-[9px] font-black text-[#444ce7] hover:text-[#3538cd] uppercase tracking-wider"
                 >
                   {availableRoutes.every(r => formData.selected_hat_kodlari.includes(r.hat_kodu)) ? 
-                    'HEPSİNİ KALDIR' : 'HEPSİNİ SEÇ'}
+                    'SEÇİMİ KALDIR' : 'HEPSİNİ SEÇ'}
                 </button>
               </div>
               
@@ -376,21 +391,53 @@ const SmartTransportContainerV2 = () => {
                       onClick={() => handleToggleRoute(route.hat_kodu)}
                       className={`px-3 py-2 rounded-[6px] text-xs font-black transition-all ${
                         formData.selected_hat_kodlari.includes(route.hat_kodu)
-                          ? 'bg-[#444ce7] text-white shadow-lg scale-105'
-                          : 'bg-[#f9fafb] border border-[#d0d5dd] text-[#475467] hover:border-[#444ce7]'
+                          ? 'bg-[#10b981] text-white shadow-md scale-105'
+                          : 'bg-[#f9fafb] border border-[#d0d5dd] text-[#475467] hover:border-[#10b981]'
                       }`}
                     >
                       {route.hat_kodu}
                     </button>
                   ))}
                 </div>
-                
-                <div className="mt-3 pt-3 border-t border-[#eaecf0]">
-                  <p className="text-[9px] text-[#667085] font-semibold">
-                    💡 Tüm hatlar seçili - Herhangi biri uygun zamanda kalkarsa alarm çalacak!
-                  </p>
-                </div>
               </div>
+            </div>
+          )}
+
+          {/* Indirect Routes (Transfer Needed) */}
+          {(showIndirectRoutes || indirectRoutes.length > 0) && (
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between cursor-pointer" onClick={() => setShowIndirectRoutes(!showIndirectRoutes)}>
+                <label className="text-[10px] font-black text-[#f59e0b] uppercase tracking-wider flex items-center gap-1">
+                  <Navigation2 size={12} />
+                  Diğer Hatlar / Aktarmalı ({indirectRoutes.length})
+                </label>
+                <span className="text-[9px] text-[#667085] underline">
+                  {showIndirectRoutes ? 'Gizle' : 'Göster'}
+                </span>
+              </div>
+              
+              {showIndirectRoutes && (
+                <div className="bg-orange-50/50 border border-orange-100 rounded-[6px] p-4">
+                  <p className="text-[10px] text-orange-800 mb-3 font-medium">
+                    ⚠️ Bu hatlar doğrudan hedefe gitmeyebilir. Aktarma yapmanız gerekebilir.
+                  </p>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                    {indirectRoutes.map((route) => (
+                      <button
+                        key={route.hat_kodu}
+                        onClick={() => handleToggleRoute(route.hat_kodu)}
+                        className={`px-3 py-2 rounded-[6px] text-xs font-black transition-all ${
+                          formData.selected_hat_kodlari.includes(route.hat_kodu)
+                            ? 'bg-[#f59e0b] text-white shadow-md scale-105'
+                            : 'bg-white border border-orange-200 text-[#475467] hover:border-[#f59e0b]'
+                        }`}
+                      >
+                        {route.hat_kodu}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

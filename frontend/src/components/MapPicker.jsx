@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, useMapEvents, Circle } from 'react-leaflet';
-import { MapPin, X, Navigation, Check } from 'lucide-react';
+import { MapContainer, TileLayer, Marker, useMapEvents, Circle, Popup } from 'react-leaflet';
+import { MapPin, X, Navigation, Check, Bus } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import api from '../api';
 
 // Fix for default marker icons in React-Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -24,6 +25,14 @@ const createCustomIcon = (color) => {
 
 const originIcon = createCustomIcon('#444ce7'); // Blue for origin
 const destinationIcon = createCustomIcon('#10b981'); // Green for destination
+
+// Stop icon
+const stopIcon = L.divIcon({
+  className: 'stop-marker',
+  html: `<div style="background-color: #f97316; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6v6"></path><path d="M15 6v6"></path><path d="M2 12h19.6"></path><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"></path><circle cx="7" cy="18" r="2"></circle><path d="M9 18h5"></path><circle cx="17" cy="18" r="2"></circle></svg></div>`,
+  iconSize: [24, 24],
+  iconAnchor: [12, 12],
+});
 
 // Component to handle map clicks
 const MapClickHandler = ({ onLocationSelect }) => {
@@ -50,7 +59,36 @@ const MapPicker = ({
   const [address, setAddress] = useState('');
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [stops, setStops] = useState([]);
+  const [selectedStopLines, setSelectedStopLines] = useState([]);
+  const [loadingLines, setLoadingLines] = useState(false);
   const mapRef = useRef(null);
+
+  // Fetch lines passing through a stop
+  const fetchStopRoutes = async (durakKodu) => {
+    setLoadingLines(true);
+    setSelectedStopLines([]);
+    try {
+      const response = await api.get(`/transport/smart/durak/${durakKodu}/hatlar`);
+      setSelectedStopLines(response.data.hatlar || []);
+    } catch (error) {
+      console.error('Error fetching stop routes:', error);
+    } finally {
+      setLoadingLines(false);
+    }
+  };
+
+  // Fetch nearby stops
+  const fetchNearbyStops = async (lat, lng) => {
+    try {
+      const response = await api.get('/transport/smart/nearby-stops', {
+        params: { lat, lon: lng, radius: 500 }
+      });
+      setStops(response.data.stops || []);
+    } catch (error) {
+      console.error('Error fetching nearby stops:', error);
+    }
+  };
 
   // Get user's current location
   const getCurrentLocation = () => {
@@ -65,6 +103,7 @@ const MapPicker = ({
           setPosition(newPos);
           setSelectedPosition(newPos);
           reverseGeocode(newPos);
+          fetchNearbyStops(newPos.lat, newPos.lng);
           setLoading(false);
         },
         (error) => {
@@ -126,6 +165,7 @@ const MapPicker = ({
         setPosition(newPos);
         setSelectedPosition(newPos);
         setAddress(data[0].display_name);
+        fetchNearbyStops(newPos.lat, newPos.lng);
       } else {
         alert('Adres bulunamadı. Lütfen farklı bir arama yapın.');
       }
@@ -141,6 +181,7 @@ const MapPicker = ({
   const handleMapClick = (coords) => {
     setSelectedPosition(coords);
     reverseGeocode(coords);
+    fetchNearbyStops(coords.lat, coords.lng);
   };
 
   // Confirm selection
@@ -231,6 +272,52 @@ const MapPicker = ({
             />
             <MapClickHandler onLocationSelect={handleMapClick} />
             
+            {/* Stops */}
+            {stops.map((stop) => (
+              <Marker
+                key={stop.durak_kodu}
+                position={[stop.lat, stop.lon]}
+                icon={stopIcon}
+                eventHandlers={{
+                  click: () => {
+                    handleMapClick({ lat: stop.lat, lng: stop.lon });
+                    fetchStopRoutes(stop.durak_kodu);
+                  },
+                }}
+              >
+                <Popup>
+                  <div className="min-w-[150px]">
+                    <div className="text-xs font-black text-gray-900">{stop.durak_adi}</div>
+                    <div className="text-[10px] text-gray-500 mb-2 font-mono">{stop.durak_kodu}</div>
+                    
+                    <div className="border-t border-gray-100 pt-2 mt-1">
+                      <div className="flex items-center gap-1 mb-1.5">
+                        <Bus size={10} className="text-blue-600" />
+                        <span className="text-[9px] font-bold text-gray-600 uppercase">GEÇEN HATLAR</span>
+                      </div>
+                      
+                      {loadingLines ? (
+                        <div className="text-[9px] text-gray-400 animate-pulse">Yükleniyor...</div>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {selectedStopLines.length > 0 ? selectedStopLines.map(line => (
+                            <span 
+                              key={line.hatKodu || line.hat_kodu || line} 
+                              className="bg-blue-50 text-blue-700 border border-blue-100 text-[9px] font-bold px-1.5 py-0.5 rounded-[3px]"
+                            >
+                              {line.hatKodu || line.hat_kodu || line}
+                            </span>
+                          )) : (
+                            <span className="text-[9px] text-gray-400 italic">Hat bilgisi bulunamadı</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
+
             {selectedPosition && (
               <>
                 <Marker 

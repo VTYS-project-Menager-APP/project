@@ -322,7 +322,26 @@ class LocationService:
             # Tüm durak kombinasyonları için hatları bul
             all_routes_dict = {}  # hat_kodu: route_info
             
+            # Transfer/Dolaylı hatlar için sadece başlangıçtan geçenler
+            origin_only_routes_dict = {}
+
             for origin_stop in origin_stops[:3]:  # İlk 3 durak yeterli
+                # Başlangıç durağından geçen hatları al (Transfer önerisi için)
+                if ibb_service:
+                    try:
+                        stop_routes = await ibb_service.get_duraktan_gecen_hatlar(origin_stop['durak_kodu'])
+                        if stop_routes:
+                            for r in stop_routes:
+                                if r.get('hatKodu') and r.get('hatKodu') not in origin_only_routes_dict:
+                                    origin_only_routes_dict[r.get('hatKodu')] = {
+                                        'hat_kodu': r.get('hatKodu'),
+                                        'hat_adi': r.get('hatAdi') or r.get('hatKodu'),
+                                        'origin_stop': origin_stop['durak_adi'],
+                                        'estimated_duration': 45 # Tahmini
+                                    }
+                    except:
+                        pass
+
                 for dest_stop in dest_stops[:3]:
                     routes = await self.find_routes_between_stops(
                         origin_stop['durak_kodu'],
@@ -339,11 +358,13 @@ class LocationService:
                             }
             
             all_routes = list(all_routes_dict.values())
+            origin_only_routes = list(origin_only_routes_dict.values())
             
             return {
                 'origin_stops': origin_stops,
                 'destination_stops': dest_stops,
                 'all_routes': all_routes,
+                'origin_only_routes': origin_only_routes,
                 'route_count': len(all_routes)
             }
             
