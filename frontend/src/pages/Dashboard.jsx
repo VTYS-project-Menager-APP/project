@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import api from '../api';
 import EventBar from '../components/EventBar';
 import MarketAnalysisTabs from '../components/MarketAnalysisTabs';
-import SmartTransportContainer from '../components/SmartTransportContainer';
+import SmartTransportContainerV2 from '../components/SmartTransportContainerV2';
 import AlarmNotification from '../components/AlarmNotification';
 
 // Loading component
@@ -57,9 +57,9 @@ export default function Dashboard() {
                         <MarketAnalysisTabs />
                     </div>
 
-                    {/* Smart Transport Alarms */}
+                    {/* Smart Transport Alarms with Map */}
                     <div className="bg-white border border-[#eaecf0] rounded-[6px] p-6 shadow-sm">
-                        <SmartTransportContainer />
+                        <SmartTransportContainerV2 />
                     </div>
                 </div>
 

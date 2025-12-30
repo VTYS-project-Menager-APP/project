@@ -14,6 +14,7 @@ from models import User, UserTransportAlarm, AlarmSelectedRoute
 from auth_utils import get_current_user
 from services.smart_transport_service import get_smart_transport_service
 from services.ibb_transport_service import get_ibb_service
+from services.location_service import get_location_service
 
 router = APIRouter(prefix="/transport/smart", tags=["smart-transport"])
 
@@ -51,6 +52,15 @@ class RouteSearchRequest(BaseModel):
     """Hat arama request"""
     origin_durak_kodu: str
     destination_durak_kodu: str
+
+
+class LocationBasedRouteSearch(BaseModel):
+    """Konum bazlı hat arama request"""
+    origin_lat: float = Field(..., ge=-90, le=90)
+    origin_lon: float = Field(..., ge=-180, le=180)
+    dest_lat: float = Field(..., ge=-90, le=90)
+    dest_lon: float = Field(..., ge=-180, le=180)
+    radius_meters: int = Field(500, ge=100, le=2000)
 
 
 class AlarmStatusResponse(BaseModel):
@@ -386,4 +396,70 @@ async def check_active_alarms(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Alarm kontrolü hatası: {str(e)}")
+
+
+@router.post("/routes/search-by-location")
+async def search_routes_by_location(
+    location_data: LocationBasedRouteSearch,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Konum bazlı hat arama - Haritadan seçilen konumlar için
+    
+    İki konum yakınındaki tüm durakları bulur ve
+    bu duraklar arasındaki tüm otobüs hatlarını listeler
+    """
+    location_service = get_location_service()
+    ibb_service = get_ibb_service()
+    
+    try:
+        result = await location_service.find_all_routes_near_locations(
+            origin_lat=location_data.origin_lat,
+            origin_lon=location_data.origin_lon,
+            dest_lat=location_data.dest_lat,
+            dest_lon=location_data.dest_lon,
+            ibb_service=ibb_service,
+            radius_meters=location_data.radius_meters
+        )
+        
+        return {
+            "success": True,
+            "origin_stops": result['origin_stops'],
+            "destination_stops": result['destination_stops'],
+            "available_routes": result['all_routes'],
+            "total_routes": result['route_count'],
+            "message": f"{result['route_count']} otobüs hattı bulundu" if result['route_count'] > 0 else "Hat bulunamadı"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Konum bazlı hat arama hatası: {str(e)}")
+
+
+@router.get("/nearby-stops")
+async def get_nearby_stops(
+    lat: float,
+    lon: float,
+    radius: int = 500,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Belirli bir konuma yakın durakları getir
+    
+    Query Parameters:
+    - lat: Enlem
+    - lon: Boylam
+    - radius: Yarıçap (metre, varsayılan 500m)
+    """
+    location_service = get_location_service()
+    
+    try:
+        stops = await location_service.find_nearby_stops_from_ibb(lat, lon, radius)
+        
+        return {
+            "location": {"lat": lat, "lon": lon},
+            "radius_meters": radius,
+            "stops": stops,
+            "count": len(stops)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Yakındaki duraklar hatası: {str(e)}")
 
