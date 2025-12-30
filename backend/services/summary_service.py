@@ -13,8 +13,10 @@ logger = logging.getLogger(__name__)
 class SummaryService:
     def __init__(self):
         import os
-        self.ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
+        # Docker network içinde 'ollama' servis adını kullan, fallback olarak localhost
+        self.ollama_url = os.getenv("OLLAMA_URL", "http://ollama:11434/api/generate")
         self.model = "llama3" # Kullanıcı makinesinde hangi model varsa, varsayılan llama3
+        logger.info(f"Ollama URL configured: {self.ollama_url}")
 
     def _call_ollama(self, prompt):
         """Ollama API'sine istek atar."""

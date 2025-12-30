@@ -27,7 +27,7 @@ services:
     ports:
       - "11434:11434"
     volumes:
-      - ollama_data:/root/.ollama
+      - eno_ollama_data:/root/.ollama
 
   backend:
     build:
@@ -62,4 +62,5 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  ollama_data:
+  eno_ollama_data:
+    external: true
