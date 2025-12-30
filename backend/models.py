@@ -145,21 +145,55 @@ class TransportRoute(Base):
     alarms = relationship("UserTransportAlarm", back_populates="route")
 
 class UserTransportAlarm(Base):
-    """Kullanıcı ulaşım alarmları"""
+    """Kullanıcı ulaşım alarmları - Akıllı alarm sistemi"""
     __tablename__ = "user_transport_alarms"
     
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    route_id = Column(Integer, ForeignKey("transport_routes.id"), nullable=False)
-    travel_time_to_stop = Column(Integer, nullable=False)  # Durağa varış süresi (dakika)
+    
+    # Lokasyon bilgileri
+    origin_location = Column(String, nullable=True)  # Başlangıç konumu (adres veya durak)
+    destination_location = Column(String, nullable=True)  # Hedef konum (iş yeri)
+    origin_durak_kodu = Column(String, nullable=True)  # Başlangıç durak kodu (İBB API için)
+    destination_durak_kodu = Column(String, nullable=True)  # Hedef durak kodu
+    
+    # Zaman bilgileri
+    target_arrival_time = Column(String, nullable=True)  # Hedefe varış saati (HH:MM)
+    travel_time_to_stop = Column(Integer, nullable=False, default=10)  # Durağa yürüme süresi (dakika)
+    
+    # Alarm ayarları
     alarm_enabled = Column(Integer, default=1)  # 0: kapalı, 1: açık
-    notification_minutes_before = Column(Integer, default=0)  # Kalkıştan kaç dakika önce bildirim
+    notification_minutes_before = Column(Integer, default=5)  # Kalkıştan kaç dakika önce bildirim
+    
+    # Eski sistem uyumluluğu için (opsiyonel)
+    route_id = Column(Integer, ForeignKey("transport_routes.id"), nullable=True)
+    
+    # Metadata
+    alarm_name = Column(String, nullable=True)  # Örn: "İşe Gidiş", "Eve Dönüş"
+    last_triggered = Column(DateTime, nullable=True)  # Son tetiklenme zamanı
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
     
     # Relationships
     user = relationship("User", backref="transport_alarms")
     route = relationship("TransportRoute", back_populates="alarms")
+    selected_routes = relationship("AlarmSelectedRoute", back_populates="alarm", cascade="all, delete-orphan")
+
+class AlarmSelectedRoute(Base):
+    """Alarm için seçilen otobüs hatları - Birden fazla hat destekleme"""
+    __tablename__ = "alarm_selected_routes"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    alarm_id = Column(Integer, ForeignKey("user_transport_alarms.id"), nullable=False)
+    hat_kodu = Column(String, nullable=False)  # Otobüs hat numarası (İBB API'den)
+    hat_adi = Column(String, nullable=True)  # Hat adı
+    tahmini_sure = Column(Integer, nullable=True)  # Tahmini yolculuk süresi (dakika)
+    priority = Column(Integer, default=0)  # Öncelik sırası (0=en düşük)
+    is_active = Column(Integer, default=1)  # 0: devre dışı, 1: aktif
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    # Relationships
+    alarm = relationship("UserTransportAlarm", back_populates="selected_routes")
 
 class MarketSummary(Base):
     """Piyasa özeti - her saat başı AI tarafından oluşturulan genel bakış"""

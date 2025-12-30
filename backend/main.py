@@ -22,12 +22,13 @@ async def startup_event():
     
     start_scheduler()
 
-from routers import api, auth, etkinlik, market_analysis, transport, notifications
+from routers import api, auth, etkinlik, market_analysis, transport, notifications, smart_transport
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(api.router, prefix="/api/v1")
 app.include_router(etkinlik.router, prefix="/api/v1")
 app.include_router(market_analysis.router, prefix="/api/v1")
 app.include_router(transport.router, prefix="/api/v1")
+app.include_router(smart_transport.router, prefix="/api/v1")
 app.include_router(notifications.router, prefix="/api/v1")
 
 @app.get("/")
