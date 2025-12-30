@@ -21,6 +21,14 @@ services:
     volumes:
       - redis_data:/data
 
+  ollama:
+    image: ollama/ollama:latest
+    restart: always
+    ports:
+      - "11434:11434"
+    volumes:
+      - eno_ollama_data:/root/.ollama
+
   backend:
     build:
       context: ./backend
@@ -34,9 +42,11 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - ETKINLIK_API_TOKEN=${ETKINLIK_API_TOKEN}
       - NEWS_API_KEY=${NEWS_API_KEY}
+      - OLLAMA_URL=http://ollama:11434/api/generate
     depends_on:
       - db
       - redis
+      - ollama
 
   frontend:
     build:
@@ -52,3 +62,5 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  eno_ollama_data:
+    external: true

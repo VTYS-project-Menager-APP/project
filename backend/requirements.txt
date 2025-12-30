@@ -19,4 +19,5 @@ kagglehub
 newsapi-python
 tradingeconomics
 openai
-
+cloudscraper
+beautifulsoup4

@@ -160,3 +160,16 @@ class UserTransportAlarm(Base):
     # Relationships
     user = relationship("User", backref="transport_alarms")
     route = relationship("TransportRoute", back_populates="alarms")
+
+class MarketSummary(Base):
+    """Piyasa özeti - her saat başı AI tarafından oluşturulan genel bakış"""
+    __tablename__ = "market_summaries"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    summary_text = Column(Text, nullable=False)
+    market_snapshot = Column(Text, nullable=True)  # JSON string of current rates
+    upcoming_events_snapshot = Column(Text, nullable=True) # JSON string of next events
+    news_snapshot = Column(Text, nullable=True) # JSON string of top news
+    advice_text = Column(Text, nullable=True)
+    overall_sentiment = Column(String, default="Neutral") # Positive, Negative, Neutral
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)

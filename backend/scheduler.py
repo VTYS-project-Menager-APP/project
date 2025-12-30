@@ -99,6 +99,19 @@ async def update_news_and_analyze():
         print(f"News update/analysis error: {e}")
 
 
+async def update_economic_calendar():
+    """
+    Ekonomik takvimi günceller (Investing.com)
+    """
+    print("Updating economic calendar from Investing.com...")
+    try:
+        from services.investing_service import investing_service
+        count = investing_service.update_upcoming_events()
+        print(f"Economic calendar updated: {count} events processed.")
+    except Exception as e:
+        print(f"Economic calendar update error: {e}")
+
+
 async def check_transport_alarms():
     """
     Aktif ulaşım alarmlarını kontrol eder ve gerekirse bildirim gönderir
@@ -140,6 +153,19 @@ async def check_transport_alarms():
         db.close()
 
 
+async def generate_hourly_market_summary():
+    """
+    Her saat başı genel piyasa özetini ve tavsiyeyi hazırlar
+    """
+    print("Generating hourly market summary...")
+    try:
+        from services.summary_service import summary_service
+        summary_service.generate_hourly_summary()
+        print("Hourly market summary generated.")
+    except Exception as e:
+        print(f"Summary generation error: {e}")
+
+
 def start_scheduler():
     # Market data - her 5 dakikada bir (1 dakika yerine - daha az yük)
     scheduler.add_job(fetch_market_data, 'interval', minutes=5)
@@ -150,14 +176,26 @@ def start_scheduler():
     # Transport alarms - her 1 dakikada bir kontrol
     scheduler.add_job(check_transport_alarms, 'interval', minutes=1)
     
-    # İlk başlatmada hemen çalıştır (5 saniye sonra)
+    # Ekonomik takvim - günde bir kez
+    scheduler.add_job(update_economic_calendar, 'interval', hours=24)
+    
+    # Piyasa Özeti - her saat başı
+    scheduler.add_job(generate_hourly_market_summary, 'interval', hours=1)
+    
+    # İlk başlatmada hemen çalıştır (sıralı)
     scheduler.add_job(fetch_market_data, trigger='date', 
                      run_date=datetime.datetime.now() + datetime.timedelta(seconds=5))
     
     scheduler.add_job(update_news_and_analyze, trigger='date', 
                      run_date=datetime.datetime.now() + datetime.timedelta(seconds=10))
+
+    scheduler.add_job(update_economic_calendar, trigger='date', 
+                     run_date=datetime.datetime.now() + datetime.timedelta(seconds=15))
+
+    scheduler.add_job(generate_hourly_market_summary, trigger='date', 
+                     run_date=datetime.datetime.now() + datetime.timedelta(seconds=20))
     
     scheduler.start()
-    print("Scheduler started with market data (5min), news analysis (2hours), and transport alarms (1min) jobs")
+    print("Scheduler started with market data (5min), news analysis (2hours), summary generation (1hour), and transport alarms (1min) jobs")
 
 
