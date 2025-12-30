@@ -30,8 +30,8 @@ class SummaryService:
                     "top_p": 0.9
                 }
             }
-            # Timeout'u kısa tutalım ki kullanıcı çok beklemesin, ama LLM yavaş olabilir
-            response = requests.post(self.ollama_url, json=payload, timeout=60)
+            # LLM detaylı analiz için daha fazla zamana ihtiyaç duyabilir
+            response = requests.post(self.ollama_url, json=payload, timeout=180)
             if response.status_code == 200:
                 return response.json().get("response", "")
             else:
