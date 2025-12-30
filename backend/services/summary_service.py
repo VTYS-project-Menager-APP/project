@@ -57,24 +57,72 @@ class SummaryService:
                     "change": r.daily_change_percent
                 })
 
-            # 2. En yüksek etkili güncel haberleri al
+            # 2. En yüksek etkili güncel haberleri al ve detaylı analiz yap
             top_news = db.query(CurrentEvent).filter(CurrentEvent.analyzed == 1).order_by(CurrentEvent.predicted_impact.desc()).limit(3).all()
             
-            # Haberler için geçmiş benzerlikleri bul
+            # Haberler için geçmiş benzerlikleri bul ve detaylı analiz yap
             news_context = []
             news_snapshot = []
+            detailed_correlations = []
             
             for news in top_news:
-                similar_events = prediction_service.find_similar_events(news, limit=1)
-                hist_context = ""
-                if similar_events:
-                    hist_event = similar_events[0]['event']
-                    # Korelasyonları bul
-                    correlations = db.query(MarketEventCorrelation).filter(MarketEventCorrelation.event_id == hist_event.id).all()
-                    corr_text = ", ".join([f"{c.symbol}: %{c.percent_change}" for c in correlations])
-                    hist_context = f"(Benzer Geçmiş Olay: '{hist_event.title}' -> Etki: {corr_text})"
+                similar_events = prediction_service.find_similar_events(news, limit=3)  # Daha fazla benzer olay
                 
-                news_context.append(f"- {news.title} {hist_context}")
+                if similar_events:
+                    # Her benzer olay için korelasyonları topla
+                    event_analysis = {
+                        'current_title': news.title,
+                        'historical_matches': []
+                    }
+                    
+                    for sim_item in similar_events:
+                        hist_event = sim_item['event']
+                        similarity_score = sim_item['similarity']
+                        
+                        # Korelasyonları detaylı al
+                        correlations = db.query(MarketEventCorrelation).filter(
+                            MarketEventCorrelation.event_id == hist_event.id
+                        ).all()
+                        
+                        if correlations:
+                            for corr in correlations:
+                                event_analysis['historical_matches'].append({
+                                    'date': hist_event.event_date.strftime('%d.%m.%Y'),
+                                    'title': hist_event.title,
+                                    'similarity': round(similarity_score * 100, 1),
+                                    'symbol': corr.symbol,
+                                    'price_before': corr.price_before,
+                                    'price_after': corr.price_after,
+                                    'percent_change': corr.percent_change,
+                                    'days_after': corr.days_after,
+                                    'correlation_strength': corr.correlation_strength
+                                })
+                    
+                    if event_analysis['historical_matches']:
+                        detailed_correlations.append(event_analysis)
+                        
+                        # Ortalama değişim hesapla
+                        gold_changes = [m['percent_change'] for m in event_analysis['historical_matches'] if m['symbol'] == 'GOLD']
+                        usd_changes = [m['percent_change'] for m in event_analysis['historical_matches'] if m['symbol'] == 'USDTRY']
+                        
+                        avg_gold = sum(gold_changes) / len(gold_changes) if gold_changes else 0
+                        avg_usd = sum(usd_changes) / len(usd_changes) if usd_changes else 0
+                        
+                        context_text = f"- GÜNCEL: {news.title}\n"
+                        context_text += f"  GEÇMIŞ ANALİZ: {len(event_analysis['historical_matches'])} benzer olay bulundu.\n"
+                        
+                        if gold_changes:
+                            context_text += f"  ALTIN: Ortalama %{avg_gold:.2f} değişim (Örnekler: "
+                            context_text += ", ".join([f"{m['date']} -> %{m['percent_change']:.1f}" for m in event_analysis['historical_matches'][:3] if m['symbol'] == 'GOLD'])
+                            context_text += ")\n"
+                        
+                        if usd_changes:
+                            context_text += f"  DOLAR: Ortalama %{avg_usd:.2f} değişim (Örnekler: "
+                            context_text += ", ".join([f"{m['date']} -> %{m['percent_change']:.1f}" for m in event_analysis['historical_matches'][:3] if m['symbol'] == 'USDTRY'])
+                            context_text += ")\n"
+                        
+                        news_context.append(context_text)
+                
                 news_snapshot.append({"title": news.title, "impact": news.predicted_impact, "category": news.category})
 
             # 3. Yaklaşan önemli olayları al
@@ -131,28 +179,42 @@ class SummaryService:
             db.close()
 
     def _build_ollama_prompt(self, rates, news_context, upcoming_context):
-        rates_str = "\n".join([f"- {r['name']}: {r['price']} (Değişim: %{r['change']})" for r in rates])
+        rates_str = "\n".join([f"- {r['name']}: {r['price']} (Günlük Değişim: %{r['change']:.2f})" for r in rates])
         news_str = "\n".join(news_context) if news_context else "Önemli bir haber yok."
         upcoming_str = "\n".join(upcoming_context) if upcoming_context else "Yakında önemli bir olay yok."
         
         return f"""
-Sen uzman bir finansal analistsin. Aşağıdaki verilere dayanarak kısa, net ve sade bir piyasa özeti ve yatırımcı için öngörü oluştur.
+Sen uzman bir finansal analistsin ve 8000+ tarihsel olay verisine dayanarak piyasa tahminleri yapıyorsun.
 
-GÜNCEL PİYASA:
+=== GÜNCEL PİYASA DURUM ===
 {rates_str}
 
-GÜNDEM VE GEÇMİŞ BENZERLİKLER:
+=== TARİHSEL KORELASYON ANALİZİ ===
+Aşağıda güncel olaylara benzer geçmiş olaylar ve o zamanki fiyat hareketleri gösteriliyor:
+
 {news_str}
 
-YAKLAŞAN OLAYLAR:
+=== YAKLAŞAN OLAYLAR ===
 {upcoming_str}
 
-Lütfen yanıtı şu iki başlık altında ver (Başlıkları aynen kullan):
+=== GÖREV ===
+Yukarıdaki tarihsel verileri kullanarak DETAYLI bir analiz yap:
+
 ÖZET:
-[Buraya piyasanın genel durumunu anlatan 2-3 cümlelik sade bir özet yaz.]
+[Buraya piyasanın genel durumunu anlatan 2-3 cümlelik özet yaz.]
 
 TAVSİYE:
-[Buraya geçmiş olaylardaki fiyat hareketlerine atıfta bulunarak (örneğin: 'Geçmişte X olduğunda Y olmuştu...') geleceğe yönelik bir fiyat tahmini ve öngörü yaz. Kesinlikle 'yatırım tavsiyesi değildir' ibaresi kullanma, sadece analitik bir öngörü sun.]
+[ÖNEMLİ: Geçmiş olaylardaki GERÇEK fiyat değişimlerini kullanarak somut tahmin yap.
+Örnek format: "2022'de benzer enflasyon açıklamasında altın %2.5 yükseldi, 2020'de %1.8 düştü. Ortalama %1.15 yükseliş göz önüne alındığında, bu sefer de ______ bekleniyor."
+
+Mutlaka şu bilgileri ekle:
+1. Kaç tane benzer geçmiş olay var
+2. O olaylardaki ortalama fiyat değişimi
+3. En yakın benzer olayın tarihi ve sonucu
+4. Güncel piyasa koşullarıyla karşılaştırma
+5. Kısa vadeli (1 hafta) ve orta vadeli (1 ay) somut fiyat beklentisi
+
+4-5 cümlelik detaylı analiz yaz.]
 """
 
     def _build_summary_text_fallback(self, rates, news, upcoming):
