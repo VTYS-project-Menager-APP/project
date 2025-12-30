@@ -5,6 +5,11 @@ import requests
 import json
 import random
 import math
+import shutil
+import os
+import uuid
+import datetime
+from fastapi import UploadFile
 
 # Helper class for color conversion and distance
 class ColorUtils:
@@ -48,26 +53,12 @@ class StyleService:
         self.db = db
 
     async def sync_palettes(self):
-        # URL of the JSON file in the repo.
-        # Based on typical structure, trying to find it. 
-        # If this URL is wrong, it needs to be updated.
-        # Found via search: https://github.com/dblodorn/sanzo-wada/blob/master/packages/sanzo-wada-data/data.json (Hypothetical)
-        # Actually, let's look for a likely path.
-        # If we can't find it, we'll use a hardcoded sample for demonstration or try to fetch from the probable location.
-        
-        # PROBABLE LOCATION based on other similar repos: 
         url = "https://raw.githubusercontent.com/dblodorn/sanzo-wada/master/packages/sanzo-wada-colors/src/colors.json" 
-        # Or maybe it is exposed via the app.
-        
-        # Let's try to fetch a known list or use a placeholder if fails.
         try:
-            # Attempt to fetch. If fails, use seed data.
-            # Using a fallback for now since we haven't confirmed the URL.
             response = requests.get(url)
             if response.status_code == 200:
                 data = response.json()
             else:
-                # Fallback data
                 data = [
                     {"id": 1, "colors": ["#334455", "#AABBCC", "#DDEEFF"], "type": "3-color"},
                     {"id": 2, "colors": ["#112233", "#445566"], "type": "2-color"}
@@ -75,36 +66,71 @@ class StyleService:
                 print("Using fallback data for Sanzo Wada palettes.")
 
             count = 0
+            new_palettes = []
+            
+            # Get existing IDs to avoid re-inserting
+            existing_ids = {p.combination_id for p in self.db.query(SanzoWadaPalette.combination_id).all()}
+
             for item in data:
-                # Adjust parsing based on actual JSON structure
-                # Assuming: { "id": 1, "colors": ["#...", "#..."] }
-                palette = self.db.query(SanzoWadaPalette).filter_by(combination_id=item.get('id')).first()
-                if not palette:
+                cid = item.get('id')
+                if cid not in existing_ids:
                     colors = item.get('colors', [])
                     ptype = f"{len(colors)}-color"
                     
                     palette = SanzoWadaPalette(
-                        combination_id=item.get('id'),
+                        combination_id=cid,
                         combination_type=ptype,
                         colors=json.dumps(colors),
                         name=item.get('name')
                     )
-                    self.db.add(palette)
+                    new_palettes.append(palette)
                     count += 1
-            self.db.commit()
+            
+            if new_palettes:
+                self.db.bulk_save_objects(new_palettes)
+                self.db.commit()
             return count
         except Exception as e:
             print(f"Error syncing palettes: {e}")
             return 0
 
-    async def add_closet_item(self, user_id: int, item_data):
+    async def upload_clothing_image(self, file: UploadFile):
+        if not file:
+            return None
+        
+        # Create directory if not exists
+        upload_dir = "static/uploads"
+        if not os.path.exists(upload_dir):
+            os.makedirs(upload_dir, exist_ok=True)
+            
+        # Generate unique filename
+        file_extension = os.path.splitext(file.filename)[1]
+        unique_filename = f"{uuid.uuid4()}{file_extension}"
+        file_path = os.path.join(upload_dir, unique_filename)
+        
+        # Save file
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        # Return URL (Relative for now, can be made absolute in response)
+        return f"/static/uploads/{unique_filename}"
+
+    async def add_closet_item(self, user_id: int, item_data, image_file: UploadFile = None):
+        image_url = item_data.image_url
+        
+        # If image file is provided, upload it and override url
+        if image_file:
+            uploaded_url = await self.upload_clothing_image(image_file)
+            if uploaded_url:
+                image_url = uploaded_url
+
         item = ClothingItem(
             user_id=user_id,
             category=item_data.category,
             sub_category=item_data.sub_category,
             primary_color_hex=item_data.primary_color_hex,
             material=item_data.material,
-            image_url=item_data.image_url
+            image_url=image_url
         )
         self.db.add(item)
         self.db.commit()
@@ -112,13 +138,48 @@ class StyleService:
         return item
 
     async def get_user_closet(self, user_id: int):
-        return self.db.query(ClothingItem).filter(ClothingItem.user_id == user_id).all()
+        return self.db.query(ClothingItem).filter(ClothingItem.user_id == user_id).order_by(ClothingItem.created_at.desc()).all()
 
     async def get_daily_recommendation(self, user_id: int):
+        today = datetime.date.today()
+        
+        # 0. Check for cached/logged outfit for today
+        existing_log = self.db.query(UserOutfitLog).filter(
+            UserOutfitLog.user_id == user_id, 
+            UserOutfitLog.date == today
+        ).first()
+        
+        if existing_log:
+             # Reconstruct response from log
+             palette = self.db.query(SanzoWadaPalette).get(existing_log.palette_id)
+             item_ids = json.loads(existing_log.items)
+             
+             # Fetch items efficiently
+             items = self.db.query(ClothingItem).filter(ClothingItem.id.in_(item_ids)).all()
+             item_map = {item.id: item for item in items}
+             
+             outfit = {
+                 "top": None, "bottom": None, "shoes": None, "outerwear": None
+             }
+             
+             # Map back to categories (simple heuristic or store role in log)
+             for item in items:
+                 if item.category == ClothingCategory.TOP and not outfit["top"]: outfit["top"] = item
+                 elif item.category == ClothingCategory.BOTTOM and not outfit["bottom"]: outfit["bottom"] = item
+                 elif item.category == ClothingCategory.SHOES and not outfit["shoes"]: outfit["shoes"] = item
+                 elif item.category == ClothingCategory.OUTERWEAR and not outfit["outerwear"]: outfit["outerwear"] = item
+            
+             return {
+                "palette_name": palette.name if palette else "Günlük Seçim",
+                "colors": json.loads(palette.colors) if palette else [],
+                "outfit": outfit,
+                "weather_info": "14°C, Cloudy (Cached)",
+                "advice": "Bugün için seçtiğimiz kombin."
+            }
+
         # 1. Get Weather (Mock for now)
         temp = 14 # Degrees Celsius
         weather_desc = "Cloudy"
-        
         needs_outerwear = temp < 15
         
         # 2. Get User's Clothes
@@ -157,9 +218,6 @@ class StyleService:
         # 5. Build Outfit from Palette
         palette_colors = json.loads(best_palette.colors)
         
-        # Identify the matched color in palette (already did approximately)
-        # Try to match other items to remaining colors
-        
         outfit = {
             "top": selected_top,
             "bottom": None,
@@ -168,7 +226,6 @@ class StyleService:
         }
         
         remaining_colors = [c for c in palette_colors] # Copy
-        # Remove the color that matched the top (closest one)
         closest_c = min(remaining_colors, key=lambda x: ColorUtils.color_distance(x, selected_top.primary_color_hex))
         if closest_c in remaining_colors:
             remaining_colors.remove(closest_c)
@@ -205,10 +262,26 @@ class StyleService:
                 
         # Find Outerwear if needed
         if needs_outerwear:
-            best_outer, _ = find_match(outerwear, remaining_colors if remaining_colors else palette_colors) # Reuse palette colors if run out
+            best_outer, _ = find_match(outerwear, remaining_colors if remaining_colors else palette_colors)
             if best_outer:
                 outfit["outerwear"] = best_outer
-                
+
+        # 6. Save Recommendation to Log
+        item_ids = []
+        if outfit["top"]: item_ids.append(outfit["top"].id)
+        if outfit["bottom"]: item_ids.append(outfit["bottom"].id)
+        if outfit["shoes"]: item_ids.append(outfit["shoes"].id)
+        if outfit["outerwear"]: item_ids.append(outfit["outerwear"].id)
+        
+        log = UserOutfitLog(
+            user_id=user_id,
+            date=today,
+            items=json.dumps(item_ids),
+            palette_id=best_palette.id
+        )
+        self.db.add(log)
+        self.db.commit()
+
         return {
             "palette_name": best_palette.name or f"Palette #{best_palette.combination_id}",
             "colors": palette_colors,
@@ -216,4 +289,3 @@ class StyleService:
             "weather_info": f"{temp}°C, {weather_desc}",
             "advice": "Bugün hava serin, dış giyim önerilir." if needs_outerwear else "Hava güzel, tadını çıkarın."
         }
-

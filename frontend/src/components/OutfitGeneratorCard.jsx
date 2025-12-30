@@ -71,17 +71,24 @@ const OutfitGeneratorCard = ({ recommendation }) => {
 const OutfitItem = ({ label, item, placeholder, isOptional }) => {
     if (!item && isOptional) return null;
     
+    const imageUrl = item?.image_url ? `http://localhost:8000${item.image_url}` : null;
+    
     return (
         <div className="border border-gray-100 rounded-lg p-3 hover:border-gray-200 transition-colors">
             <span className="text-xs font-medium text-gray-400 uppercase tracking-wider block mb-2">{label}</span>
             {item ? (
                 <div className="flex items-center gap-3">
                     <div 
-                        className="w-10 h-10 rounded-full border border-gray-200 shadow-sm"
-                        style={{ backgroundColor: item.primary_color_hex }}
-                    ></div>
+                        className="w-12 h-12 rounded-md border border-gray-200 shadow-sm overflow-hidden flex-shrink-0 bg-gray-50"
+                    >
+                         {imageUrl ? (
+                             <img src={imageUrl} alt={item.sub_category} className="w-full h-full object-cover" />
+                         ) : (
+                             <div className="w-full h-full" style={{ backgroundColor: item.primary_color_hex }}></div>
+                         )}
+                    </div>
                     <div>
-                        <div className="text-sm font-semibold text-gray-800">{item.sub_category}</div>
+                        <div className="text-sm font-semibold text-gray-800 line-clamp-1">{item.sub_category}</div>
                         <div className="text-xs text-gray-500">{item.category}</div>
                     </div>
                 </div>
@@ -96,4 +103,3 @@ const OutfitItem = ({ label, item, placeholder, isOptional }) => {
 }
 
 export default OutfitGeneratorCard;
-
